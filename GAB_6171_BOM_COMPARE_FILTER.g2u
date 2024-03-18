@@ -1,0 +1,116 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Written by: Trent
+'Written for: Miller Weldmaster
+'Written on: 6/20/2020 free of charge
+'We made a change to BOM compare that will not let you bring in parts greater than 20 characters.  This will find parts greater than 20 characters, move the part number to the description field and make the part number **PART-TOO-LONG
+'Attach to hook 50310
+F.Intrinsic.Control.CallSub(preLoad)
+Program.Sub.Main.End
+
+Program.Sub.preLoad.Start
+V.Local.bInstr.Declare
+V.Local.bOnFirst.Declare
+V.Local.bSource.Declare
+V.Local.iTitles.Declare
+V.Local.iFor.Declare
+V.Local.iFor2.Declare
+V.Local.iLen.Declare
+V.Local.iRows.Declare
+V.Local.sChild.Declare
+V.Local.sGSSPart.Declare
+V.Local.sParent.Declare
+V.Local.sRet.Declare
+V.Local.sRow.Declare
+V.Local.sSel.Declare
+V.Local.sSQL.Declare
+V.Local.sTitleArray.Declare
+V.Local.sTitles.Declare
+
+'Connect
+F.Intrinsic.UI.InvokeWaitDialog("Loading BDF","BOM Compare - ARC 6171 - Ver: 062020.1")
+
+'Close dtPreload if it exists
+F.Intrinsic.Control.If(V.DataTable.dtPreload.Exists,=,True)
+	F.Data.DataTable.DeleteRow("dtPreload")
+	F.Data.DataTable.Close("dtPreload")
+F.Intrinsic.Control.EndIf
+
+'Load the BDF to dtPreLoad
+F.Intrinsic.BDF.Load("bdfPreload","Main-PrePopulate-bdf")
+
+'Load the BDF Titles
+F.Intrinsic.BDF.ReadColumnTitle("bdfPreload",V.Local.sTitles)
+
+'Split the titles and loop through them to create columns in dtPreload
+F.Intrinsic.String.Split(V.Local.sTitles,"*!*",V.Local.sTitleArray)
+F.Data.DataTable.Create("dtPreload",True)
+V.Local.iTitles.Set(V.Local.sTitleArray.UBound)
+F.Intrinsic.Control.For(V.Local.iFor,0,V.Local.iTitles,1)
+	F.Intrinsic.UI.ChangeWaitStatus("Creating Data Table",V.Local.iFor,0,V.Local.iTitles)
+	F.Data.DataTable.AddColumn("dtPreload",V.Local.sTitleArray(V.Local.iFor).UCase,"String")
+F.Intrinsic.Control.Next(V.Local.iFor)
+
+'Load the bdf rows into dtPreload
+F.Intrinsic.BDF.ReadRowCount("bdfPreload",V.Local.iRows)
+F.Intrinsic.Math.Sub(V.Local.iRows,1,V.Local.iRows)
+F.Intrinsic.Control.For(V.Local.iFor,0,V.Local.iRows,1)
+	F.Intrinsic.UI.ChangeWaitStatus("Loading BDF to Data Table",V.Local.iFor,0,V.Local.iRows)
+	F.Intrinsic.BDF.ReadRow("bdfPreload",V.Local.iFor,V.Local.sRow)
+	F.Intrinsic.String.Split(V.Local.sRow,"|~|",V.Local.sRow)
+	V.Local.bOnFirst.Set(False)
+	F.Intrinsic.Control.For(V.Local.iFor2,0,V.Local.iTitles,1)
+		F.Intrinsic.Control.If(V.Local.bOnFirst,=,False)
+			F.Data.DataTable.AddRow("dtPreload",V.Local.sTitleArray(V.Local.iFor2),V.Local.sRow(V.Local.iFor2))
+		F.Intrinsic.Control.Else
+			F.Data.DataTable.SetValue("dtPreload",V.Local.iFor,V.Local.sTitleArray(V.Local.iFor2),V.Local.sRow(V.Local.iFor2))
+		F.Intrinsic.Control.EndIf
+		V.Local.bOnFirst.Set(True)
+	F.Intrinsic.Control.Next(V.Local.iFor2)
+F.Intrinsic.Control.Next(V.Local.iFor)
+
+'Loop through dtPreLoad
+F.Intrinsic.Control.For(V.Local.iFor,0,V.DataTable.dtPreload.RowCount--,1)
+	'F.Intrinsic.String.GSSPartString(V.DataTable.dtPreload(V.Local.iFor).DISPLAYPART!FieldValTrim,V.DataTable.dtPreload(V.Local.iFor).Revision!FieldValTrim,V.Local.sGSSPart)
+	v.Local.sGSSPart.Set(V.DataTable.dtPreload(V.Local.iFor).DISPLAYPART!FieldValTrim)
+	'Function.Intrinsic.Debug.InvokeDebugger
+	'Function.Intrinsic.Debug.Stop
+	
+	F.Intrinsic.String.Trim(V.Local.sGSSPart,V.Local.sGSSPart)
+	F.Intrinsic.Control.If(V.Local.sGSSPart.Length,>,20)
+		f.Data.DataTable.SetValue("dtPreload",v.Local.iFor,"DISPLAYPART","**PART-TOO-LONG","PARTNO","**PART-TOO-LONG","DESCRIPTION",V.DataTable.dtPreload(V.Local.iFor).DISPLAYPART!FIELDVALTRIM,"QUANTITY",0)
+		'F.Data.DataTable.DeleteRow("dtPreload",V.Local.iFor)
+		'f.Data.DataTable.AddRow("dtPreload")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iFor)
+
+F.Intrinsic.Control.CallSub(savepreloadbdf)
+Program.Sub.preLoad.End
+
+Program.Sub.savePreloadBDF.Start
+V.Local.iFor.Declare
+V.Local.sRow.Declare
+
+'Clone the bdf
+F.Intrinsic.BDF.Clone("bdfPreload","bdfClone")
+
+'Redim sRow
+V.Local.sRow.Redim(0,0)
+V.Local.sRow.Set("")
+
+'Loop through dtPreLoad
+F.Intrinsic.Control.For(V.Local.iFor,0,V.DataTable.dtPreload.RowCount--,1)
+	'Post to the bdfClone
+	F.Intrinsic.String.Replace(V.DataTable.dtPreload(V.Local.iFor).FullRow,"*!*","|~|",V.Local.sRow)
+	F.Intrinsic.BDF.WriteRow("bdfClone",V.Local.sRow)
+F.Intrinsic.Control.Next(V.Local.iFor)
+'Function.Intrinsic.Debug.InvokeDebugger
+'Function.Intrinsic.Debug.Stop
+
+F.Intrinsic.BDF.Save("bdfClone","Main-PrePopulate-bdf")
+
+F.Intrinsic.Control.End
+
+Program.Sub.savePreloadBDF.End
